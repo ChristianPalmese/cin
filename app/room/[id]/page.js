@@ -10,6 +10,7 @@ import {
   callCin,
   unstick,
   isStuck,
+  legalTargets,
 } from "@/lib/game";
 
 function Screen({ children }) {
@@ -25,8 +26,6 @@ export default function Room() {
   const router = useRouter();
   const [room, setRoom] = useState(null);
   const [clientId, setClientId] = useState(null);
-  const [sel, setSel] = useState(null);
-  const [note, setNote] = useState(null);
   const versionRef = useRef(0);
 
   useEffect(() => {
@@ -52,8 +51,6 @@ export default function Room() {
         (payload) => {
           setRoom(payload.new);
           versionRef.current = payload.new.version;
-          setSel(null);
-          setNote(null);
         }
       )
       .subscribe();
@@ -154,23 +151,15 @@ export default function Room() {
   const oppBoard = st[opp + "Board"];
   const oppDeck = st[opp + "Deck"];
 
-  // Ogni carta si seleziona e ogni pila accetta il tap: la validità della mossa
-  // si scopre solo quando si cala, così l'interfaccia non anticipa nulla.
+  // Un solo tap: se la carta è calabile parte da sola sulla pila valida (la prima,
+  // se lo sono entrambe), altrimenti non succede nulla. Nessuna indicazione prima
+  // del tap, così l'interfaccia non anticipa la mossa giusta.
   const clickStack = (idx) => {
     if (st.winner) return;
-    setNote(null);
-    setSel(sel === idx ? null : idx);
-  };
-  const clickPile = (target) => {
-    if (st.winner || sel == null) return;
-    const next = applyMove(st, me, sel, target);
-    setSel(null);
-    if (!next) {
-      setNote("Mossa non valida.");
-      return;
-    }
-    setNote(null);
-    commit(next);
+    const stack = myBoard[idx];
+    const t = legalTargets(stack[stack.length - 1].r, st.c1, st.c2);
+    if (t.length === 0) return;
+    commit(applyMove(st, me, idx, t[0]));
   };
 
   const winnerText = st.winner
@@ -207,12 +196,8 @@ export default function Room() {
         {/* Centro */}
         <div className="bg-emerald-800/40 rounded-xl p-4 mb-3 flex flex-col items-center gap-3">
           <div className="flex gap-8 items-center">
-            <div onClick={() => clickPile("c1")} className="cursor-pointer">
-              <Card card={st.c1[st.c1.length - 1]} />
-            </div>
-            <div onClick={() => clickPile("c2")} className="cursor-pointer">
-              <Card card={st.c2[st.c2.length - 1]} />
-            </div>
+            <Card card={st.c1[st.c1.length - 1]} />
+            <Card card={st.c2[st.c2.length - 1]} />
           </div>
           <div className="flex gap-2">
             <button
@@ -246,7 +231,7 @@ export default function Room() {
         </div>
 
         <div className="mt-3 text-center text-sm bg-black/30 rounded-lg py-2 px-3 min-h-[2.5rem] flex items-center justify-center">
-          {note ?? (sel != null ? "Scegli la pila centrale." : st.message)}
+          {st.message}
         </div>
       </div>
 
