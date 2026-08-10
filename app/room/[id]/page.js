@@ -9,9 +9,7 @@ import {
   applyMove,
   callCin,
   unstick,
-  cinAvailable,
   isStuck,
-  legalTargets,
 } from "@/lib/game";
 
 function Screen({ children }) {
@@ -28,6 +26,7 @@ export default function Room() {
   const [room, setRoom] = useState(null);
   const [clientId, setClientId] = useState(null);
   const [sel, setSel] = useState(null);
+  const [note, setNote] = useState(null);
   const versionRef = useRef(0);
 
   useEffect(() => {
@@ -54,6 +53,7 @@ export default function Room() {
           setRoom(payload.new);
           versionRef.current = payload.new.version;
           setSel(null);
+          setNote(null);
         }
       )
       .subscribe();
@@ -153,31 +153,24 @@ export default function Room() {
   const myDeck = st[me + "Deck"];
   const oppBoard = st[opp + "Board"];
   const oppDeck = st[opp + "Deck"];
-  const cin = cinAvailable(st);
-  const stuck = isStuck(st);
 
-  const selStack = sel != null ? myBoard[sel] : null;
-  const selTargets = selStack ? legalTargets(selStack[selStack.length - 1].r, st.c1, st.c2) : [];
-
+  // Ogni carta si seleziona e ogni pila accetta il tap: la validità della mossa
+  // si scopre solo quando si cala, così l'interfaccia non anticipa nulla.
   const clickStack = (idx) => {
     if (st.winner) return;
-    const stack = myBoard[idx];
-    const t = legalTargets(stack[stack.length - 1].r, st.c1, st.c2);
-    if (t.length === 0) {
-      setSel(null);
-      return;
-    }
-    if (t.length === 1) {
-      commit(applyMove(st, me, idx, t[0]));
-      setSel(null);
-    } else {
-      setSel(idx);
-    }
+    setNote(null);
+    setSel(sel === idx ? null : idx);
   };
   const clickPile = (target) => {
-    if (sel == null) return;
-    commit(applyMove(st, me, sel, target));
+    if (st.winner || sel == null) return;
+    const next = applyMove(st, me, sel, target);
     setSel(null);
+    if (!next) {
+      setNote("Mossa non valida.");
+      return;
+    }
+    setNote(null);
+    commit(next);
   };
 
   const winnerText = st.winner
@@ -214,35 +207,23 @@ export default function Room() {
         {/* Centro */}
         <div className="bg-emerald-800/40 rounded-xl p-4 mb-3 flex flex-col items-center gap-3">
           <div className="flex gap-8 items-center">
-            <div
-              onClick={() => selTargets.includes("c1") && clickPile("c1")}
-              className={selTargets.includes("c1") ? "cursor-pointer" : ""}
-            >
-              <Card card={st.c1[st.c1.length - 1]} glow={selTargets.includes("c1")} />
+            <div onClick={() => clickPile("c1")} className="cursor-pointer">
+              <Card card={st.c1[st.c1.length - 1]} />
             </div>
-            <div
-              onClick={() => selTargets.includes("c2") && clickPile("c2")}
-              className={selTargets.includes("c2") ? "cursor-pointer" : ""}
-            >
-              <Card card={st.c2[st.c2.length - 1]} glow={selTargets.includes("c2")} />
+            <div onClick={() => clickPile("c2")} className="cursor-pointer">
+              <Card card={st.c2[st.c2.length - 1]} />
             </div>
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => commit(callCin(st, me))}
-              disabled={!cin}
-              className={`px-6 py-2 rounded-lg font-black tracking-wider transition ${
-                cin ? "bg-amber-400 text-emerald-950 animate-pulse" : "bg-white/10 text-white/40"
-              }`}
+              className="px-6 py-2 rounded-lg font-black tracking-wider transition bg-amber-400 text-emerald-950"
             >
               CIN!
             </button>
             <button
               onClick={() => commit(unstick(st))}
-              disabled={!stuck}
-              className={`px-4 py-2 rounded-lg text-sm ${
-                stuck ? "bg-white/20 hover:bg-white/30" : "bg-white/5 text-white/30"
-              }`}
+              className="px-4 py-2 rounded-lg text-sm bg-white/20 hover:bg-white/30"
             >
               Gira
             </button>
@@ -253,24 +234,19 @@ export default function Room() {
         <div className="bg-black/20 rounded-xl p-3">
           <div className="text-xs opacity-70 mb-1">Tu · mazzo: {myDeck.length}</div>
           <div className="flex gap-2">
-            {myBoard.map((s, i) => {
-              const t = legalTargets(s[s.length - 1].r, st.c1, st.c2);
-              return (
-                <Card
-                  key={i}
-                  card={s[s.length - 1]}
-                  count={s.length}
-                  glow={sel === i}
-                  faded={t.length === 0}
-                  onClick={() => clickStack(i)}
-                />
-              );
-            })}
+            {myBoard.map((s, i) => (
+              <Card
+                key={i}
+                card={s[s.length - 1]}
+                count={s.length}
+                onClick={() => clickStack(i)}
+              />
+            ))}
           </div>
         </div>
 
         <div className="mt-3 text-center text-sm bg-black/30 rounded-lg py-2 px-3 min-h-[2.5rem] flex items-center justify-center">
-          {st.message}
+          {note ?? (sel != null ? "Scegli la pila centrale." : st.message)}
         </div>
       </div>
 
